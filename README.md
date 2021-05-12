@@ -1,6 +1,6 @@
 # Udacity Data Engineering capstone project
 
-This repository is for the fifth Data Engineering Nanodegree project from Udacity. This project implements a ETL Data pipeline using Apache Airflow, AWS S3 Bucket and Amazon Redshift.
+This project defines the pipeline to load historical data of Bitcoin and Ethereum blockchains and create a Data Lake. The process includes data formatting, cleaning, and transformation. 
 
 Project sections:
 
@@ -13,7 +13,7 @@ Project sections:
 
 ## Problem understanding
 
-Create the custom Airflow operators to perform tasks such as staging the data, filling the data warehouse, and running checks on the data as the final step.
+This project defines the pipeline to load historical data of Bitcoin and Ethereum blockchains and create a Data Lake. The process includes data formatting, cleaning, and transformation. 
 
 ## Data description
 
