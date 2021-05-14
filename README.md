@@ -17,31 +17,44 @@ This project defines the pipeline to load historical data of Bitcoin and Ethereu
 
 ## Data description
 
-The project uses data from [Million Song Dataset] (https://labrosa.ee.columbia.edu/millionsong/) that is a freely-available collection of audio features and metadata for a million contemporary popular music tracks (300 GB). This data is open for exploration and research and for this project will only use a sample from the songs database and artist information in json format.
+Datasets used are obtained from Kaggle's datasets, from these repositories:
+
+Bitcoin Historical Data
+
+* Source: https://www.kaggle.com/mczielinski/bitcoin-historical-data
+* Description: Bitcoin data at 1-min intervals from select exchanges, Jan 2012 to March 2021
+* Format: Unique CSV file
+* Fields: - Timestamp
+          - Open
+          - High
+          - Low
+          - Close
+          - Volume_(BTC)
+          - Volume_(Currency)
+          - Weighted_Price
+* Time period: 2012-01-01 to 2021-3-31
+Ethereum (ETH/USDT) 1m Dataset
+
+* Source: https://www.kaggle.com/priteshkeleven/ethereum-ethusdt-1m-dataset
+* Description: Ethereum dataset with 1 minute interval from 17-8-2017 to 03-2-2021
+* Format: CSV for each month
+* Fields: - timestamp
+          - open
+          - high
+          - low
+          - close
+          - volume
+          - close_time
+          - quote_av
+          - trades
+          - tb_base_av
+          - tb_quote_av
+          - ignore
+
+* Time period: 17-8-2017 to 03-2-2021
   
 - **Song dataset**:  
   Json files are under */data/song_data* directory. The file format is:
-
-```
-{"num_songs": 1, "artist_id": "ARJIE2Y1187B994AB7", "artist_latitude": null, "artist_longitude": null, "artist_location": "", "artist_name": "Line Renaud", "song_id": "SOUPIRU12A6D4FA1E1", "title": "Der Kleine Dompfaff", "duration": 152.92036, "year": 0}
-```
-
-- **Log dataset**: 
-  Json File are under */data/log_data*. The file format is:
-
-```
-{"artist":"Slipknot","auth":"Logged In","firstName":"Aiden","gender":"M","itemInSession":0,"lastName":"Ramirez","length":192.57424,"level":"paid","location":"New York-Newark-Jersey City, NY-NJ-PA","method":"PUT","page":"NextSong","registration":1540283578796.0,"sessionId":19,"song":"Opium Of The People (Album Version)","status":200,"ts":1541639510796,"userAgent":"\"Mozilla\/5.0 (Windows NT 6.1) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/36.0.1985.143 Safari\/537.36\"","userId":"20"}
-```
-
-The data is available in the Udacity buckets 
-
-```
-  Song data: s3://udacity-dend/song_data
-  Log data: s3://udacity-dend/log_data
-
-```
-The data paths are defined into the Airflow environment connection variables.
-
 
 ## Database Model
 
