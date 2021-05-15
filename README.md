@@ -21,41 +21,42 @@ Datasets used are obtained from Kaggle's datasets, from these repositories:
 
 Bitcoin Historical Data
 
-* Source: https://www.kaggle.com/mczielinski/bitcoin-historical-data
-* Description: Bitcoin data at 1-min intervals from select exchanges, Jan 2012 to March 2021
-* Format: Unique CSV file
-* Fields: - Timestamp
-          - Open
-          - High
-          - Low
-          - Close
-          - Volume_(BTC)
-          - Volume_(Currency)
-          - Weighted_Price
-* Time period: 2012-01-01 to 2021-3-31
+          ```  
+          * Source: https://www.kaggle.com/mczielinski/bitcoin-historical-data
+          * Description: Bitcoin data at 1-min intervals from select exchanges, Jan 2012 to March 2021
+          * Format: Unique CSV file
+          * Fields: - Timestamp
+                    - Open
+                    - High
+                    - Low
+                    - Close
+                    - Volume_(BTC)
+                    - Volume_(Currency)
+                    - Weighted_Price
+          * Time period: 2012-01-01 to 2021-3-31
+          ```  
+
 Ethereum (ETH/USDT) 1m Dataset
 
-* Source: https://www.kaggle.com/priteshkeleven/ethereum-ethusdt-1m-dataset
-* Description: Ethereum dataset with 1 minute interval from 17-8-2017 to 03-2-2021
-* Format: CSV for each month
-* Fields: - timestamp
-          - open
-          - high
-          - low
-          - close
-          - volume
-          - close_time
-          - quote_av
-          - trades
-          - tb_base_av
-          - tb_quote_av
-          - ignore
-
-* Time period: 17-8-2017 to 03-2-2021
+          ```
+          * Source: https://www.kaggle.com/priteshkeleven/ethereum-ethusdt-1m-dataset
+          * Description: Ethereum dataset with 1 minute interval from 17-8-2017 to 03-2-2021
+          * Format: CSV for each month
+          * Fields: - timestamp
+                    - open
+                    - high
+                    - low
+                    - close
+                    - volume
+                    - close_time
+                    - quote_av
+                    - trades
+                    - tb_base_av
+                    - tb_quote_av
+                    - ignore
+          * Time period: 17-8-2017 to 03-2-2021
+          ```
   
-- **Song dataset**:  
-  Json files are under */data/song_data* directory. The file format is:
-
 ## Database Model
 
 The database will be designed for analytics using Fact and Dimensions tables on a Star Schema architecture, and staging tables to read data from s3 data storage:
@@ -63,27 +64,20 @@ The database will be designed for analytics using Fact and Dimensions tables on 
 **Staging Tables**
 
 ```
-  staging_events - Load the raw data from log events json files.
+  staging_events - Load the raw data from btc csv file:
   artist, auth, firstName, gender, itemInSession, lastName, length, level, location, method, page, registration, sessionId, song, status, ts, userAgent, userId
 
   staging_songs
   num_songs	artist_id	artist_latitude	artist_longitude	artist_location	artist_name	song_id	title	duration	year
 ```  
 
-**Fact Table**
+**combined series**
+
 ```
   songplays - records in log data associated with song plays i.e. records with page NextSong
     songplay_id, start_time, user_id, level, song_id, artist_id, session_id, location, user_agent
 ```
 
-**Dimension Tables**
-
-```
-  users - users in the app: user_id, first_name, last_name, gender, level
-  songs - songs in music database: song_id, title, artist_id, year, duration
-  artists - artists in music database: artist_id, name, location, latitude, longitude
-  time - timestamps of records in songplays broken down into specific units: start_time, hour, day, week, month, year, weekday
-```
 
 ### Logic model
 
@@ -95,13 +89,12 @@ The database will be designed for analytics using Fact and Dimensions tables on 
 The project structure is based on the Udacity's project template:
 
 ```
-+ airflow + dags
-          + plugings  + helpers   + sql_queries.py: Insert sql stament definitions
-                      + operators + data_quality.py: This operator implements the data quality verification task, based on the BaseOperator
-                                  + load_dimension.py: This operator implements the LoadDimensionOperator class that execute the data load process from staging tables to dimension tables.
-                                  + load_fact.py: This operator implements the LoadFactOperator class that execute the data load process from staging tables to fact table.
-                                  + stage_redshift.py: This operator implements the data quality verification task, based on the BaseOperator
-          + create_tables.sql : drops and creates your tables. You run this file to reset your tables before each time you run your ETL scripts.
++ data    + btc_data     : drops and creates your tables. You run this file to reset your tables before each time you run your ETL scripts.
+          + eth_data     : drops and creates your tables. You run this file to reset your tables before each time you run your ETL scripts.
+
++ capstone_project.ipynb : drops and creates your tables. You run this file to reset your tables before each time you run your ETL scripts.
++ etl.py                 : drops and creates your tables. You run this file to reset your tables before each time you run your ETL scripts.
++ dl.cfg                 : drops and creates your tables. You run this file to reset your tables before each time you run your ETL scripts.
 
 ```
 
