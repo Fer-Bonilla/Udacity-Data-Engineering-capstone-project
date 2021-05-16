@@ -172,12 +172,15 @@ The project structure is based on the Udacity's project template:
 
 ## ETL Pipeline description
 
-### The ETL is defined in the airflow configuration. The first step executes de tables creation, then the data load into staging tables is executed, next data load into fact table ins executed and the last part is load data into dimensions tables. At the end, the quality check is executed counting the rows number in the dimension’s tables.
-
-
-### ETL pipeline diagram
-
-![ETL pipeline diagram](https://github.com/Fer-Bonilla/Udacity-Data-Engineering-data-pipelines-with-airflow/blob/main/images/airflow_pipeline.png)
+          1. Define the global variables in the configuration file (dl.cfg)
+          2. Read data from CSV files from INPUT_FILE Directory into Spark dataframe
+          3. Save Spark dataframes to staging parquet file
+          4. Read BTC parket file and drop null values.
+          5. Transform BTC timestamp in to (year, month, day, hour)
+          6. Transform ETH timestamp in to (year, month, day, hour)
+          7. Join BTC and ETH spark dataframes
+          8. Save data to table crypto_timeseries
+          9. Run the Quality control check
 
 ## Instructions to run the pipeline
 
