@@ -1,168 +1,216 @@
-# ETL pipeline for analysing Weather and pollution data
+# -*- coding: utf-8 -*-
+"""
+    This script implements the ETL pipeline to execute the process using amazon AWS services and apache Spark
+    
+    Staging tables:
+        - staging_events - Load the raw data from log events json files artist
+        auth, firstName, gender, itemInSession,    lastName, length, level, location, method, page, registration, sessionId, song, status, ts, userAgent, userId
+        - staging_songs - num_songs artist_id artist_latitude artist_longitude artist_location artist_name song_id title duration year
+       
+    Dimension tables:
+        - users - users in the app: user_id, first_name, last_name, gender, level
+        - songs - songs in music database: song_id, title, artist_id, year, duration
+        - artists - artists in music database: artist_id, name, location, latitude, longitude
+        - time - timestamps of records in songplays: start_time, hour, day, week, month, year, weekday
+    
+    Fact Table:
+        - songplays - records in log data associated with song plays.
+        
+    The pipeline is implemented using dataframes loading data from Postgres database with the psycopg2 connector.        
+        
+"""
+
 import pandas as pd
 import re
+import boto3
+import zipfile
 from pyspark.sql import SparkSession
 import os
 import glob
 import configparser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pyspark.sql import types as t
 from pyspark.sql.functions import udf, col, monotonically_increasing_id
 from pyspark.sql.functions import year, month, dayofmonth, hour, weekofyear
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def create_spark_session():
-    """Create a Apache Spark session to process the data.
-
-    Keyword arguments:
-    * N/A
-
-    Output:
-    * spark -- An Apache Spark session.
+    
     """
-    print("Preparing Spark session for the pipeline...")
-    spark = SparkSession \
-        .builder\
-        .config("spark.jars.packages","saurfang:spark-sas7bdat:2.0.0-s_2.11")\
-        .enableHiveSupport().getOrCreate()
-    print("Spark session preparation DONE.")
-
+        The function create_spark_session create the object session for the apache spark service
+        Parameters:
+            None
+        Returns:
+            spark session object
+        Note:
+            None
+    """   
+    
+    spark = SparkSession.builder.config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0").getOrCreate()
     return spark
-# --------------------------------------------------------
-def process_config(config_all):
-    """Prepare configs for the pipeline.
 
-    Keyword arguments:
-    * config_all    -- All configuration settings read from config file.
 
-    Output:
-    * PATHS         -- Dictionary of paths used in pipeline.
+
+def process_setup_variables(config_all):
+    
     """
-    print("Preparing PATHs for the pipeline...")
+        The function process_setup_variables load the configuration file and create the gloal configuration variables
+        Parameters:
+            config_all : Object tha contains all configuration values from dl.cfg file
+        Returns:
+            spark session object
+        Note:
+            None
+    """
+
+    # NOTE: Use these if using AWS S3 as a storage
+    INPUT_DATA_AWS              = config['AWS']['INPUT_DATA_AWS']
+    OUTPUT_DATA_AWS             = config['AWS']['OUTPUT_DATA_AWS']
+
+    # NOTE: Use these if using local storage
+    INPUT_DATA_LOCAL            = config['LOCAL']['INPUT_DATA_LOCAL']
+    OUTPUT_DATA_LOCAL           = config['LOCAL']['OUTPUT_DATA_LOCAL']
+
+    # Common configuration parameters
+    DATA_LOCATION               = config['COMMON']['DATA_LOCATION']
+    DATA_STORAGE                = config['COMMON']['DATA_STORAGE']
+    INPUT_DATA_BTC_DIRECTORY    = config['COMMON']['INPUT_DATA_BTC_DIRECTORY']
+    INPUT_DATA_BTC_ZIP_FILENAME = config['COMMON']['INPUT_DATA_BTC_ZIP_FILENAME']
+    INPUT_DATA_BTC_FILENAME     = config['COMMON']['INPUT_DATA_BTC_FILENAME']
+    INPUT_DATA_ETH_DIRECTORY    = config['COMMON']['INPUT_DATA_ETH_DIRECTORY']
+    INPUT_DATA_ETH_ZIP_FILENAME = config['COMMON']['INPUT_DATA_ETH_ZIP_FILENAME']
+    INPUT_DATA_ETH_FILENAME     = config['COMMON']['INPUT_DATA_ETH_FILENAME']
+    OUTPUT_DATA_BTC_FILENAME    = config['COMMON']['OUTPUT_DATA_BTC_FILENAME']
+    OUTPUT_DATA_ETH_FILENAME    = config['COMMON']['OUTPUT_DATA_ETH_FILENAME']
+    
     PATHS = {}
+    
+    # Select the global variables
+    if DATA_LOCATION == "local":
+        PATHS["input_data"]        = INPUT_DATA_LOCAL
+        PATHS["output_data"]       = OUTPUT_DATA_LOCAL
 
-    # Set parameters for the pipeline based on config
-    if config_all['COMMON']['DATA_LOCATION'] == "local":
-        PATHS["input_data"]        = config_all['LOCAL']['INPUT_DATA_LOCAL']
-        PATHS["i94_data"]          = config_all['LOCAL']['INPUT_DATA_I94_LOCAL']
-        PATHS["airport_codes"]     = config_all['LOCAL']['INPUT_DATA_AIRPORT_LOCAL']
-        PATHS["country_codes_iso"] = config_all['LOCAL']['INPUT_DATA_COUNTRY_LOCAL']
-        PATHS["airport_codes_i94"] = config_all['LOCAL']['INPUT_DATA_AIRPORT_I94_LOCAL']
-        PATHS["country_codes_i94"] = config_all['LOCAL']['INPUT_DATA_COUNTRY_I94_LOCAL']
-        PATHS["output_data"]       = config_all['LOCAL']['OUTPUT_DATA_LOCAL']
-    elif config_all['COMMON']['DATA_LOCATION'] == "server":
-        PATHS["input_data"]        = config_all['SERVER']['INPUT_DATA_SERVER']
-        PATHS["i94_data"]          = config_all['SERVER']['INPUT_DATA_I94_SERVER']
-        PATHS["airport_codes"]     = config_all['SERVER']['INPUT_DATA_AIRPORT_SERVER']
-        PATHS["country_codes_iso"] = config_all['SERVER']['INPUT_DATA_COUNTRY_SERVER']
-        PATHS["airport_codes_i94"] = config_all['SERVER']['INPUT_DATA_AIRPORT_I94_SERVER']
-        PATHS["country_codes_i94"] = config_all['SERVER']['INPUT_DATA_COUNTRY_I94_SERVER']
-        PATHS["output_data"]       = config_all['SERVER']['OUTPUT_DATA_SERVER']
-    elif config_all['COMMON']['DATA_LOCATION'] == "aws":
-        PATHS["input_data"]        = config_all['AWS']['INPUT_DATA']
-        PATHS["i94_data"]          = config_all['AWS']['INPUT_DATA_I94']
-        PATHS["airport_codes"] = config_all['AWS']['INPUT_DATA_AIRPORT']
-        PATHS["country_codes_iso"]     = config_all['AWS']['INPUT_DATA_COUNTRY']
-        PATHS["airport_codes_i94"] = config_all['AWS']['INPUT_DATA_AIRPORT_I94']
-        PATHS["country_codes_i94"] = config_all['AWS']['INPUT_DATA_COUNTRY_I94']
-        PATHS["output_data"]       = config_all['AWS']['OUTPUT_DATA']
+    elif DATA_LOCATION == "aws":
+        PATHS["input_data"]        = INPUT_DATA_AWS
+        PATHS["output_data"]       = OUTPUT_DATA_AWS
 
-    if config_all["COMMON"]["DATA_STORAGE"] == "postgresql":
-        PATHS["data_storage"]      = config_all["COMMON"]["DATA_STORAGE_SQL"]
-    elif config_all["COMMON"]["DATA_STORAGE"] == "parquet":
-        PATHS["data_storage"]      = config_all["COMMON"]["DATA_STORAGE"]
+    elif DATA_STORAGE == "parquet":
+        PATHS["data_storage"]      = DATA_STORAGE
 
-    #print(AWS_ACCESS_KEY_ID)
-    #print(AWS_SECRET_ACCESS_KEY)
+    # load variables for BTC data
+    PATHS["btc_data_directory"]    = INPUT_DATA_BTC_DIRECTORY
+    PATHS["btc_zip_filename"]      = INPUT_DATA_BTC_ZIP_FILENAME    
+    PATHS["btc_filename"]          = INPUT_DATA_BTC_FILENAME
+    PATHS["btc_output_filename"]   = OUTPUT_DATA_BTC_FILENAME    
 
-    # Print out paths in PATHS
-    print("PATHS preparation DONE.\n")
-    print("PATHS:")
-    for path in PATHS:
-        print(path)
+    # load variables for ETH data
+    PATHS["eth_data_directory"]    = INPUT_DATA_ETH_DIRECTORY
+    PATHS["eth_zip_filename"]      = INPUT_DATA_ETH_ZIP_FILENAME    
+    PATHS["eth_filename"]          = INPUT_DATA_ETH_FILENAME
+    PATHS["eth_output_filename"]   = OUTPUT_DATA_ETH_FILENAME    
 
     return PATHS
 
-# --------------------------------------------------------
-def parse_input_files(PATHS, path, extension, start_str):
-    """Parse recursively all input files from given directory path.
+
+
+def process_btc_input_data(spark, PATHS):
+    
+    """
+        The function process_btc_input_data read all csv files from input data directory 
+        and write the parquet file with all the raw data
+        
+        Parameters:
+            spark (obj): 
+                spark object session
+            input_data (str): 
+                Path to the btc data files
+            output_data (str): 
+                Path to write the parquet files
+                
+        Returns:
+            None
+            
+        Note:
+             The function write direct to S3 bucket songs and artists tables in parket format.             
+    """   
+    
+    # Read csv files
+    btc_data_staging = spark.read.options(header='True', inferSchema='True').csv(PATHS["btc_data_directory"])
+
+    # Rename btc input file columns
+    btc_data_staging_temp = btc_data_staging.withColumnRenamed("Volume_(BTC)", "Volume_BTC") \
+                                            .withColumnRenamed("Volume_(Currency)", "Volume_Currency")
+
+    # Write to parquet file
+    btc_data_staging_temp.write.mode("overwrite").parquet(PATHS["output_data"]+PATHS["btc_output_filename"])
+
+
+    
+def process_eth_input_data(spark, PATHS):
+    
+    """
+        The function process_eth_input_data read all csv files from input data directory 
+        and write the parquet file with all the raw data
+        
+        Parameters:
+            spark (obj): 
+                spark object session
+            input_data (str): 
+                Path to the eth data files
+            output_data (str): 
+                Path to write the parquet files
+                
+        Returns:
+            None
+            
+        Note:
+             The function write direct to S3 bucket songs and artists tables in parket format.             
+    """   
+    
+    # Read csv files
+
+    eth_data_staging = spark.read.options(header='True', inferSchema='True').csv(PATHS['eth_data_directory'])
+    
+    # Write to parquet file
+    eth_data_staging.write.mode("overwrite").parquet(PATHS["output_data"]+PATHS["eth_output_filename"])  
+    
+
+    
+def format_btc_staging_data(spark, PATHS, i94_df_spark, start_time):
+    """Clean i94 data - fill-in empty/null values with "NA"s or 0s.
 
     Keyword arguments:
-    * PATHS     -- PATHS variable with all.
-    * path      -- path to parse.
-    * extension -- file extension to look for.
+    * spark              -- reference to Spark session.
+    * PATHS              -- paths for input and output data.
+    * start_str          -- Datetime when the pipeline was started.
+                            Used to name parquet files.
 
     Output:
-    * all_files -- List of all valid input files found.
+    * i94_df_spark_clean -- clean Spark DataFrame.
     """
-    print(f"PATH: {path}")
-    print(f"EXTENSION: {extension}")
-    # Get (from directory) the files matching extension
-    all_files = []
-    for root, dirs, files in os.walk(path):
-        files = glob.glob(os.path.join(root, extension))
-        for f in files :
-            all_files.append(os.path.abspath(f))
+    start_local = datetime.now()
+    print("Cleaning i94 data...")
+    # Filling-in empty/null data with "NA"s or 0's
+    i94_df_spark_clean = i94_df_spark\
+        .na.fill({'i94mode': 0.0, 'i94addr': 'NA','depdate': 0.0, \
+            'i94bir': 'NA', 'i94visa': 0.0, 'count': 0.0, \
+            'dtadfile': 'NA', 'visapost': 'NA', 'occup': 'NA', \
+            'entdepa': 'NA', 'entdepd': 'NA', 'entdepu': 'NA', \
+            'matflag': 'NA', 'biryear': 0.0, 'dtaddto': 'NA', \
+            'gender': 'NA', 'insnum': 'NA', 'airline': 'NA', \
+            'admnum': 0.0, 'fltno': 'NA', 'visatype': 'NA'
+            })
+    print("Cleaning i94 data DONE.")
 
-    return all_files
+    stop_local = datetime.now()
+    total_local = stop_local - start_local
+    print(f"I94 data cleaning DONE in: {total_local}\n")
 
-# --------------------------------------------------------
-def reorder_paths(filepaths):
-    """Reorder all input files Jan -> Dec.
+    return i94_df_spark_clean
+    
+    
 
-    Keyword arguments:
-    * filepath  -- List of all filepaths.
-
-    Output:
-    * reordered_paths_list_clean -- Ordered lisat of all inout files.
-    """
-    reordered_paths_list = \
-        ["01","02","03","04","05","06","07","08","09","10","11","12"]
-
-    for path in filepaths:
-        month, year = parse_year_and_month(path)
-        month_order = {
-            "jan": 0,
-            "feb": 1,
-            "mar": 2,
-            "apr": 3,
-            "may": 4,
-            "jun": 5,
-            "jul": 6,
-            "aug": 7,
-            "sep": 8,
-            "oct": 9,
-            "nov": 10,
-            "dec": 11
-        }
-        loc = month_order.get(month)
-        reordered_paths_list[loc] = path
-
-    reordered_paths_list_clean = []
-    for str in reordered_paths_list:
-        if len(str) != 2:
-            reordered_paths_list_clean.append(str)
-        else:
-            pass
-
-    return reordered_paths_list_clean
-
-# --------------------------------------------------------
-def parse_year_and_month(filepath):
-    """Parse year and month out from the file name.
-
-    Keyword arguments:
-    * filepath  -- List of all filepaths.
-
-    Output:
-    * month, year -- Month and year of the input file
-                    (based on file name).
-    """
-    month = filepath[-18:-15]
-    year = filepath[-15:-13]
-
-    return month, year
-
-# --------------------------------------------------------
 def process_i94_data(spark, PATHS, filepath, start_time):
     """Load input data (i94) from input path,
         read the data to Spark and
@@ -317,95 +365,6 @@ def process_i94_airport_data(spark, PATHS, start_time):
 
     return airport_codes_i94_df_spark
 
-# --------------------------------------------------------
-def process_i94_country_code_data(spark, PATHS, start_time):
-    """Load input data (i94 Country Codes) from input path,
-        read the data to Spark and
-        store the data to parquet staging files.
-
-    Keyword arguments:
-    * spark                 -- reference to Spark session.
-    * PATHS                 -- paths for input and output data.
-    * start_time            -- Datetime when the pipeline was started.
-                                Used for name parquet files.
-
-    Output:
-    * i94_country_codes_staging_table -- directory with parquet files
-                                        stored in output data path.
-    """
-    start_local = datetime.now()
-    print("Processing i94 Country Codes data ...")
-    # Read I94 Country codes data from XLS:
-    country_codes_i94_df = pd.read_excel(PATHS["country_codes_i94"], \
-                                        header=0, index_col=0)
-    # --------------------------------------------------------
-    # Cleaning I94 Country Code data first
-    cc = {"i94cit_clean": [],
-          "i94_country_name_clean": [],
-          "iso_country_code_clean" : []
-          }
-    ccodes = []
-    cnames = []
-    ccodes_iso = []
-
-    for index, row in country_codes_i94_df.iterrows():
-        cname = re.sub("'", "", row[0]).strip()
-        ccode_iso = row[1]
-        ccodes.append(index)
-        cnames.append(cname)
-        ccodes_iso.append(ccode_iso)
-
-    cc["i94cit_clean"] = ccodes
-    cc["i94_country_name_clean"] = cnames
-    cc["iso_country_code_clean"] = ccodes_iso
-
-    country_codes_i94_df_clean = pd.DataFrame.from_dict(cc)
-    # --------------------------------------------------------
-    # Writing clean data to CSV (might be needed at some point)
-    print("Writing I94 Country Code data to CSV...")
-    cc_path = PATHS["input_data"] + "/country_codes_i94_clean.csv"
-    country_codes_i94_df_clean.to_csv(cc_path, sep=',')
-    print("Writing I94 Country Code data to CSV DONE.")
-    print("Cleaning I94 Country Code data DONE.")
-    # --------------------------------------------------------
-    # Read data to Spark
-    print("Reading I94 Country Code data to Spark...")
-    country_codes_i94_schema = t.StructType([
-                t.StructField("i94_cit", t.StringType(), False),
-                t.StructField("i94_country_name", t.StringType(), False),
-                t.StructField("iso_country_code", t.StringType(), False)
-            ])
-    country_codes_i94_df_spark = spark.createDataFrame(\
-                                country_codes_i94_df_clean, \
-                                schema=country_codes_i94_schema)
-    # --------------------------------------------------------
-    # Print schema and data snippet
-    print("SCHEMA:")
-    country_codes_i94_df_spark.printSchema()
-    print("DATA EXAMPLES:")
-    country_codes_i94_df_spark.show(2, truncate=False)
-    # --------------------------------------------------------
-    # Write i94 Country data to parquet file:
-    country_codes_i94_df_path = PATHS["output_data"] \
-                                + "country_codes_i94_staging.parquet" \
-                                + "_" + start_time
-    print(f"OUTPUT: {country_codes_i94_df_path}")
-    print("Writing parquet files ...")
-    country_codes_i94_df_spark.write.mode("overwrite")\
-                                .parquet(country_codes_i94_df_path)
-    print("Writing i94 Country Code staging files DONE.")
-    # --------------------------------------------------------
-    # Read parquet file back to Spark:
-    print("Reading parquet files back to Spark... ")
-    country_codes_i94_df_spark = spark.read.\
-                                 parquet(country_codes_i94_df_path)
-    print("Reading parquet files back to Spark DONE.")
-    # --------------------------------------------------------
-    stop_local = datetime.now()
-    total_local = stop_local - start_local
-    print(f"I94 Country Code processing DONE in: {total_local}\n")
-
-    return country_codes_i94_df_spark
 
 # --------------------------------------------------------
 def process_iso_country_code_data(spark, PATHS, start_time):
@@ -483,37 +442,7 @@ def process_iso_country_code_data(spark, PATHS, start_time):
     return country_codes_iso_df_spark
 
 # --------------------------------------------------------
-def clean_i94_data(spark, PATHS, i94_df_spark, start_time):
-    """Clean i94 data - fill-in empty/null values with "NA"s or 0s.
 
-    Keyword arguments:
-    * spark              -- reference to Spark session.
-    * PATHS              -- paths for input and output data.
-    * start_str          -- Datetime when the pipeline was started.
-                            Used to name parquet files.
-
-    Output:
-    * i94_df_spark_clean -- clean Spark DataFrame.
-    """
-    start_local = datetime.now()
-    print("Cleaning i94 data...")
-    # Filling-in empty/null data with "NA"s or 0's
-    i94_df_spark_clean = i94_df_spark\
-        .na.fill({'i94mode': 0.0, 'i94addr': 'NA','depdate': 0.0, \
-            'i94bir': 'NA', 'i94visa': 0.0, 'count': 0.0, \
-            'dtadfile': 'NA', 'visapost': 'NA', 'occup': 'NA', \
-            'entdepa': 'NA', 'entdepd': 'NA', 'entdepu': 'NA', \
-            'matflag': 'NA', 'biryear': 0.0, 'dtaddto': 'NA', \
-            'gender': 'NA', 'insnum': 'NA', 'airline': 'NA', \
-            'admnum': 0.0, 'fltno': 'NA', 'visatype': 'NA'
-            })
-    print("Cleaning i94 data DONE.")
-
-    stop_local = datetime.now()
-    total_local = stop_local - start_local
-    print(f"I94 data cleaning DONE in: {total_local}\n")
-
-    return i94_df_spark_clean
 
 # --------------------------------------------------------
 def process_admissions_data(spark, PATHS, i94_df_spark_clean, start_time):
@@ -1090,43 +1019,31 @@ def check_data_quality( spark, \
     print(f"Checking data quality DONE in: {total_local}\n")
 
     return results
-# --------------------------------------------------------
+
+
+
 def main():
-    """Load input data (I94 Immigration data) from input_data path,
-        process the data to extract dimension and fact tables,
-        and store the prepered data to parquet files to output_data path.
-
-    Keyword arguments:
-    * NA
-
-    Output:
-    * admissions_table   -- directory with admissions_table parquet files
-                          stored in output_data path.
-    * countries_table    -- directory with countries_table parquet files
-                          stored in output_data path.
-    * airports_table     -- directory with airports_table parquet files
-                          stored in output_data path.
-    * time_table         -- directory with time_table parquet files
-                          stored in output_data path.
-    * immigrations_table -- directory with immigrations_table parquet files
-                          stored in output_data path.
-    """
-    # Start the clocks
-    start = datetime.now()
-    start_str = datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')
-    print("\nSTARTED ETL pipeline (to process I94 Immigrations data). \
-            at {}\n".format(start))
-    results_all = []
-    # --------------------------------------------------------
+    
     # Prepare configs for the pipeline.
     config_all = configparser.ConfigParser()
     config_all.read('dl.cfg')
+    
+    # Load the keys for 
     os.environ['AWS_ACCESS_KEY_ID']=config_all['AWS']['AWS_ACCESS_KEY_ID']
     os.environ['AWS_SECRET_ACCESS_KEY']=config_all['AWS']['AWS_SECRET_ACCESS_KEY']
 
-    PATHS = process_config(config_all)
-    # --------------------------------------------------------
-    # Create Spark session for the pipeline.
+    # Load JAVA, spark and hadoop configuration path directories
+    os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+    os.environ["PATH"] = "/opt/conda/bin:/opt/spark-2.4.3-bin-hadoop2.7/bin:/opt/conda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/jvm/java-8-openjdk-amd64/bin"
+    os.environ["SPARK_HOME"] = "/opt/spark-2.4.3-bin-hadoop2.7"
+    os.environ["HADOOP_HOME"] = "/opt/spark-2.4.3-bin-hadoop2.7"
+    
+    
+    # Load the global variables
+    PATHS = process_setup_variables(config_all)
+    
+    
+    # Create Spark session
     spark = create_spark_session()
     # --------------------------------------------------------
     # Parse input data dir
