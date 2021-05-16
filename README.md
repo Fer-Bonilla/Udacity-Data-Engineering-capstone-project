@@ -152,7 +152,8 @@ The database will be designed for analytics using Fact and Dimensions tables on 
 
 ### Logic model
 
-![Logic model](https://github.com/Fer-Bonilla/Udacity-Data-Engineering-capstone-project/blob/main/redshift-udacity/DefaultLayout.svg)
+![Logic model](https://github.com/Fer-Bonilla/Udacity-Data-Engineering-capstone-project/blob/main/conceptual_model-spark.png)
+
 
 
 ## Project structure
