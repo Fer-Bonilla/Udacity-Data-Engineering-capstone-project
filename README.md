@@ -63,25 +63,96 @@ The database will be designed for analytics using Fact and Dimensions tables on 
 
 **Staging Tables**
 
-```
-  staging_events - Load the raw data from btc csv file:
-  artist, auth, firstName, gender, itemInSession, lastName, length, level, location, method, page, registration, sessionId, song, status, ts, userAgent, userId
+    *Table: staging_btc
 
-  staging_songs
-  num_songs	artist_id	artist_latitude	artist_longitude	artist_location	artist_name	song_id	title	duration	year
-```  
+    *Columns:
+        - Timestamp
+        - Open
+        - High
+        - Low
+        - Close
+        - Volume_btc
+        - Volume_currency
+        - Weighted_price
+
+
+    *Table: staging_eth
+
+    *Columns:
+        - timestamp
+        - open
+        - high
+        - close
+        - volume
+        - close_time
+        - quote_av
+        - trades
+        - tb_base_av
+        - tb_quote_Av
+        - ignore
+
+
+
+
+
+**Transformed series**
+
+    *Table: btc_timeseries
+
+    *Columns:
+        - timestamp
+        - year
+        - month
+        - day
+        - hour
+        - btc_open
+        - btc_high
+        - btc_low
+        - btc_close
+        - btc_volume
+
+
+    *Table: eth_timeseries
+
+    *Columns:
+        - timestamp
+        - year (Partition Key)
+        - month
+        - day
+        - hour
+        - eth_open
+        - eth_high
+        - eth_low
+        - eth_close
+        - eth_volume
+
 
 **combined series**
 
-```
-  songplays - records in log data associated with song plays i.e. records with page NextSong
-    songplay_id, start_time, user_id, level, song_id, artist_id, session_id, location, user_agent
-```
+    *Table: crypto_timeseries
+
+    *Columns:
+        - year (Partition Key)
+        - month
+        - day
+        - hour
+        - btc_open
+        - btc_high
+        - btc_low
+        - btc_close
+        - btc_volume
+        - eth_open
+        - eth_high
+        - eth_low
+        - eth_close
+        - eth_volume
+
+
 
 
 ### Logic model
 
-![Logic model](https://github.com/Fer-Bonilla/Udacity-Data-Engineering-data-pipelines-with-airflow/blob/main/redshift-udacity/DefaultLayout.svg)
+![Logic model](https://github.com/Fer-Bonilla/Udacity-Data-Engineering-capstone-project/blob/main/redshift-udacity/DefaultLayout.svg)
 
 
 ## Project structure
