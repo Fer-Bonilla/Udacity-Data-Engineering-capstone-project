@@ -283,9 +283,9 @@ A. Components required
 B Running the pipeline
 
  1.	Clone the repository
- 2.	Download the zip data files from the kaggle repositories
+ 2.	Download the zip data files from the Kaggle repositories
  3.	Configure the dl.cfg global variables values
- 4.	Run the Pipeline with pyton etl.py
+ 4.	Run the Pipeline with Python etl.py
  
 
 ## Author 
